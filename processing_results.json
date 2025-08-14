@@ -1,0 +1,67 @@
+[
+  {
+    "input": {
+      "departamento": "MATERIALES DE CONSTRUCCION",
+      "familia": "AISLANTE S",
+      "categoria": "FIBRA DE VIDRIO",
+      "brand": "Owens Corning",
+      "r_value": "R-13",
+      "dimensions": "15\"x93\"x3.5\"",
+      "color": "Gris",
+      "description": "Aislamiento térmico para construcción"
+    },
+    "category_match": {
+      "departamento": "MATERIALES DE CONSTRUCCION",
+      "familia": "AISLANTE S",
+      "categoria": "FIBRA DE VIDRIO",
+      "nomenclatura_sugerida": "Tipo + Dimensiones y/o cantidad de piezas + Color",
+      "ejemplo_aplicado": "Fibra de Vidrio R-13 15\"x93\"x3.5\" Gris",
+      "match_type": "exact"
+    },
+    "full_title": "Fibra de Vidrio Owens Corning R-13 15x93x3.5 Gris Aislamiento Térmico",
+    "store_label": "Fibra Owens Corning R-13 Aislamiento",
+    "success": true,
+    "errors": []
+  },
+  {
+    "input": {
+      "departamento": "MATERIALES DE CONSTRUCCION",
+      "familia": "AISLANTE S",
+      "categoria": "CASETON DE POLIESTIRENO",
+      "brand": "Technopor",
+      "dimensions": "60x60x2cm",
+      "color": "Blanco",
+      "description": "Caseton para techo decorativo"
+    },
+    "category_match": {
+      "departamento": "MATERIALES DE CONSTRUCCION",
+      "familia": "AISLANTE S",
+      "categoria": "CASETON DE POLIESTIRENO",
+      "nomenclatura_sugerida": "Tipo + Dimensiones y/o cantidad de piezas + Color",
+      "ejemplo_aplicado": "Caseton Poliestireno 60x60x2cm Blanco",
+      "match_type": "exact"
+    },
+    "full_title": "Caseton Poliestireno Technopor 60x60x2cm Blanco - Techo Decorativo Aislante S",
+    "store_label": "Caseton 60x60x2cm Blanco - Aislante",
+    "success": true,
+    "errors": []
+  },
+  {
+    "input": {
+      "description": "Grapas para aislante térmico 1000 piezas color azul"
+    },
+    "category_match": {
+      "departamento": "MATERIALES DE CONSTRUCCION",
+      "familia": "AISLANTE S",
+      "categoria": "ACCESORIOS PARA AISLANTE",
+      "nomenclatura_sugerida": "Tipo + Dimensiones y/o cantidad de piezas + Color",
+      "ejemplo_aplicado": "Accesorios para Aislante Grapas 1000pz Azul",
+      "match_type": "partial",
+      "score": 12
+    },
+    "full_title": "Accesorios para Aislante Grapas 1000pz Azul Térmico - Alta Resistencia y Durabilidad",
+    "store_label": "Accesorios para Grapas 1000pz Azul",
+    "success": true,
+    "errors": []
+  }
+]
