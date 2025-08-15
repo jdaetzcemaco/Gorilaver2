@@ -11,7 +11,7 @@ class UpdatedCompletePipeline:
         """Initialize the improved 4-agent pipeline"""
         self.parser = ImprovedTitleParser(openai_api_key)               # NEW: Improved parser
         self.classifier = ImprovedCategoryClassifier()                  # NEW: Improved classifier
-        self.generator = EnhancedTitleGenerator(openai_api_key)         # Agent 2: Generate titles
+        self.generator = EnhancedEnhancedTitleGenerator(openai_api_key)         # Agent 2: Generate titles
         self.formatter = LabelFormatter()                               # Agent 3: Create labels
         
         print("✓ Updated pipeline initialized with Enhanced Title Generator")
