@@ -1,5 +1,5 @@
 from agents.category_classifier import CategoryClassifier
-from agents.title_generator import TitleGenerator  
+from agents.enhanced_title_generator import EnhancedTitleGenerator
 from agents.label_formatter import LabelFormatter
 from typing import Dict, Tuple
 import json
@@ -8,10 +8,10 @@ class ProductTitlePipeline:
     def __init__(self, openai_api_key: str = None):
         """Initialize the 3-agent pipeline"""
         self.agent1 = CategoryClassifier()
-        self.agent2 = TitleGenerator(openai_api_key)
+        self.agent2 = EnhancedTitleGenerator(openai_api_key)
         self.agent3 = LabelFormatter()
         
-        print("✓ Pipeline initialized with 3 agents")
+        print("✓ Pipeline initialized with 3 agents (Enhanced Title Generator)")
     
     def process_product(self, product_data: Dict) -> Dict:
         """

@@ -11,13 +11,13 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from agents.tile_fixed_classifier import TileFixedCategoryClassifier
-    from agents.title_generator import TitleGenerator
+    from agents.enhanced_title_generator import EnhancedTitleGenerator
     from agents.label_formatter import LabelFormatter
     
     class SimpleTilePipeline:
         def __init__(self):
             self.classifier = TileFixedCategoryClassifier()
-            self.generator = TitleGenerator()
+            self.generator = EnhancedTitleGenerator()
             self.formatter = LabelFormatter()
         
         def process_raw_title(self, title):

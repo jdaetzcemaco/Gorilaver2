@@ -1,6 +1,6 @@
 from agents.improved_title_parser import ImprovedTitleParser
 from agents.improved_category_classifier import ImprovedCategoryClassifier
-from agents.title_generator import TitleGenerator  
+from agents.enhanced_title_generator import EnhancedTitleGenerator 
 from agents.label_formatter import LabelFormatter
 from typing import Dict, List
 import json
@@ -9,12 +9,12 @@ import pandas as pd
 class UpdatedCompletePipeline:
     def __init__(self, openai_api_key: str = None):
         """Initialize the improved 4-agent pipeline"""
-        self.parser = ImprovedTitleParser(openai_api_key)        # NEW: Improved parser
-        self.classifier = ImprovedCategoryClassifier()           # NEW: Improved classifier
-        self.generator = TitleGenerator(openai_api_key)          # Agent 2: Generate titles
-        self.formatter = LabelFormatter()                        # Agent 3: Create labels
+        self.parser = ImprovedTitleParser(openai_api_key)               # NEW: Improved parser
+        self.classifier = ImprovedCategoryClassifier()                  # NEW: Improved classifier
+        self.generator = EnhancedTitleGenerator(openai_api_key)         # Agent 2: Generate titles
+        self.formatter = LabelFormatter()                               # Agent 3: Create labels
         
-        print("✓ Updated pipeline initialized with improved construction vocabulary")
+        print("✓ Updated pipeline initialized with Enhanced Title Generator")
     
     def process_raw_title(self, raw_title: str) -> Dict:
         """
