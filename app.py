@@ -74,27 +74,27 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from agents.tile_fixed_classifier import TileFixedCategoryClassifier
-    from agents.enhanced_title_generator import EnhancedTitleGenerator
     from agents.label_formatter import LabelFormatter
     
     class SimpleTilePipeline:
-    def __init__(self): # Note: proper indentation and __init__
-        self.classifier = TileFixedCategoryClassifier()
+        def __init__(self): # Note: proper indentation and __init__
+            self.classifier = TileFixedCategoryClassifier()
 
-        # Wrap the enhanced generator with safety
-        try:
-            from agents.enhanced_title_generator import EnhancedTitleGenerator
-            original_generator = EnhancedTitleGenerator()
-            self.generator = SafeEnhancedTitleGenerator(original_generator)
-            print("✓ Using Enhanced TitleGenerator with safety wrapper")
-        except Exception as e:
-            print(f"⚠️ Enhanced generator failed to load: {e}")
-            # Fallback to basic generator
-            from agents.title_generator import TitleGenerator
-            self.generator = TitleGenerator()
-            print("✓ Using basic TitleGenerator as fallback")
+            # Wrap the enhanced generator with safety
+            try:
+                from agents.enhanced_title_generator import EnhancedTitleGenerator
+                original_generator = EnhancedTitleGenerator()
+                self.generator = SafeEnhancedTitleGenerator(original_generator)
+                print("✓ Using Enhanced TitleGenerator with safety wrapper")
+            except Exception as e:
+                print(f"⚠️ Enhanced generator failed to load: {e}")
+                # Fallback to basic generator
+                from agents.title_generator import TitleGenerator
+                self.generator = TitleGenerator()
+                print("✓ Using basic TitleGenerator as fallback")
 
-        self.formatter = LabelFormatter()
+            self.formatter = LabelFormatter()
+
         def process_raw_title(self, title):
             try:
                 product_data = {'description': title, 'original_title': title}

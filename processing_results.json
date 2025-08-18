@@ -18,8 +18,8 @@
       "ejemplo_aplicado": "Fibra de Vidrio R-13 15\"x93\"x3.5\" Gris",
       "match_type": "exact"
     },
-    "full_title": "Fibra de Vidrio Owens Corning R-13 15x93x3.5 Gris Aislamiento Térmico",
-    "store_label": "Fibra Owens Corning R-13 Aislamiento",
+    "full_title": "Owens Corning Fibra De Vidrio 15\"x93\"x3.5\" Gris",
+    "store_label": "Owens Corning Fibra De 15\"x93\"x3.5\"",
     "success": true,
     "errors": []
   },
@@ -41,8 +41,8 @@
       "ejemplo_aplicado": "Caseton Poliestireno 60x60x2cm Blanco",
       "match_type": "exact"
     },
-    "full_title": "Caseton Poliestireno Technopor 60x60x2cm Blanco - Techo Decorativo Aislante S",
-    "store_label": "Caseton 60x60x2cm Blanco - Aislante",
+    "full_title": "Technopor Caseton De Poliestireno 60x60x2cm Blanco",
+    "store_label": "Caseton De Poliestireno 60x60x2cm",
     "success": true,
     "errors": []
   },
@@ -59,8 +59,8 @@
       "match_type": "partial",
       "score": 12
     },
-    "full_title": "Accesorios para Aislante Grapas 1000pz Azul Térmico - Alta Resistencia y Durabilidad",
-    "store_label": "Accesorios para Grapas 1000pz Azul",
+    "full_title": "Grapas para Aislante Térmico 1000pz Genérico Color Negro - Herramientas y Suministros de Construcción",
+    "store_label": "Grapas Aislante Térmico 1000pz Negro",
     "success": true,
     "errors": []
   }
