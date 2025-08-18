@@ -5,7 +5,70 @@ import sys
 import traceback
 import time
 import pandas as pd
+from typing import Dict
 
+class SafeEnhancedTitleGenerator:
+    """Wrapper to make EnhancedTitleGenerator safe for web interface"""
+    
+    def __init__(self, original_generator):
+        self.original_generator = original_generator
+    
+    def generate_ecommerce_title(self, product_data: Dict, category_info: Dict) -> str:
+        """Safe wrapper for title generation with comprehensive error handling"""
+        
+        try:
+            # Try the enhanced generation
+            title = self.original_generator.generate_ecommerce_title(product_data, category_info)
+            
+            # Ensure we got a valid string
+            if title and isinstance(title, str) and len(title.strip()) > 0:
+                return title.strip()
+            else:
+                raise ValueError("Empty or invalid title returned")
+                
+        except Exception as e:
+            print(f"   ⚠️  Enhanced generation failed ({e}), using fallback")
+            
+            # Create a safe fallback title
+            return self._create_safe_fallback_title(product_data, category_info)
+    
+    def _create_safe_fallback_title(self, product_data: Dict, category_info: Dict) -> str:
+        """Create a safe fallback title when enhanced generation fails"""
+        
+        parts = []
+        
+        # Add brand if available
+        brand = product_data.get('brand', '')
+        if brand:
+            parts.append(str(brand).strip())
+        
+        # Add category
+        categoria = category_info.get('categoria', 'Product')
+        if categoria:
+            parts.append(str(categoria).strip().title())
+        
+        # Add description or original title
+        description = (product_data.get('description', '') or 
+                      product_data.get('original_title', '') or 
+                      'Item')
+        
+        # Take first few words from description
+        desc_words = str(description).split()[:4]
+        if desc_words:
+            parts.extend(desc_words)
+        
+        # Join and clean up
+        title = ' '.join(str(part) for part in parts if part)
+        
+        # Ensure we have something
+        if not title:
+            title = "Product Item"
+        
+        # Limit length
+        if len(title) > 150:
+            title = title[:147] + "..."
+        
+        return title
 # Add the current directory to Python path so we can import our modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -15,11 +78,23 @@ try:
     from agents.label_formatter import LabelFormatter
     
     class SimpleTilePipeline:
-        def __init__(self):
-            self.classifier = TileFixedCategoryClassifier()
-            self.generator = EnhancedTitleGenerator()
-            self.formatter = LabelFormatter()
-        
+    def __init__(self): # Note: proper indentation and __init__
+        self.classifier = TileFixedCategoryClassifier()
+
+        # Wrap the enhanced generator with safety
+        try:
+            from agents.enhanced_title_generator import EnhancedTitleGenerator
+            original_generator = EnhancedTitleGenerator()
+            self.generator = SafeEnhancedTitleGenerator(original_generator)
+            print("✓ Using Enhanced TitleGenerator with safety wrapper")
+        except Exception as e:
+            print(f"⚠️ Enhanced generator failed to load: {e}")
+            # Fallback to basic generator
+            from agents.title_generator import TitleGenerator
+            self.generator = TitleGenerator()
+            print("✓ Using basic TitleGenerator as fallback")
+
+        self.formatter = LabelFormatter()
         def process_raw_title(self, title):
             try:
                 product_data = {'description': title, 'original_title': title}
