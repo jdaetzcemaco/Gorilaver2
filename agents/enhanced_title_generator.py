@@ -189,25 +189,29 @@ IMPORTANT: Return only valid JSON, no additional text or formatting."""
     
     def _validate_category_with_web_search(self, product_data: Dict, category_info: Dict) -> Dict:
         """Validate if the assigned category makes sense based on web research"""
-        
+
+        # Defensive: ensure category_info is a dict
+        if category_info is None:
+            category_info = {}
+
         validation_result = {
             'original_category': category_info,
             'validation_passed': True,
             'confidence': 0.8,
             'corrected_category': None
         }
-        
+
         # Check if we have web research data
         web_research = product_data.get('web_research', {})
         if 'error' in web_research:
             return validation_result
-        
+
         suggested_category = web_research.get('product_category', '')
         verified_product_type = web_research.get('verified_product_type', '')
-        
+
         if not suggested_category:
             return validation_result
-        
+
         try:
             # Ask AI to compare categories
             comparison_prompt = f"""Compare these product categorizations. Respond with valid JSON only.
@@ -237,14 +241,14 @@ IMPORTANT: Return only valid JSON, no additional text."""
                 temperature=0.1,
                 max_tokens=250
             )
-            
+
             validation_text = response.choices[0].message.content.strip()
             validation_data = self._safe_json_parse(validation_text)
-            
+
             if 'error' not in validation_data:
                 validation_result['validation_passed'] = validation_data.get('category_makes_sense', True)
                 validation_result['confidence'] = validation_data.get('confidence', 0.5)
-                
+
                 # If category doesn't make sense, create a corrected version
                 if not validation_data.get('category_makes_sense', True):
                     corrected_category = category_info.copy()
@@ -252,25 +256,29 @@ IMPORTANT: Return only valid JSON, no additional text."""
                     corrected_category['web_research_corrected'] = True
                     corrected_category['original_categoria'] = category_info.get('categoria')
                     corrected_category['correction_reason'] = validation_data.get('reasoning', 'Category mismatch detected')
-                    
+
                     validation_result['corrected_category'] = corrected_category
                     print(f"   ⚠️  Category corrected: {category_info.get('categoria')} → {suggested_category}")
                     print(f"      Reason: {validation_data.get('reasoning', 'Category mismatch detected')}")
             else:
                 print(f"   ⚠️  Category validation parsing failed: {validation_data.get('error', 'Unknown')}")
-            
+
         except Exception as e:
             print(f"   ⚠️  Category validation failed: {e}")
-        
+
         return validation_result
     
     def _generate_title_with_context(self, enhanced_product_data: Dict, category_info: Dict) -> str:
         """Generate title using enhanced product data and validated category"""
-        
-        # Extract the naming format from category info
+
+        # Defensive: ensure category_info is a dict
+        if category_info is None:
+            category_info = {}
+
         naming_rule = category_info.get('nomenclatura_sugerida', 'Marca + Tipo + Especificaciones')
         example = category_info.get('ejemplo_aplicado', '')
         category = category_info.get('categoria', 'General')
+        was_corrected = category_info.get('web_research_corrected', False)
         
         # Use verified information from web research when available
         verified_brand = enhanced_product_data.get('verified_brand', enhanced_product_data.get('brand', ''))
@@ -331,8 +339,13 @@ Generate ONE optimized title that follows the format and will appeal to customer
     
     def _create_enhanced_fallback_title(self, product_data: Dict, category_info: Dict) -> str:
         """Create a fallback title using enhanced data"""
+
+        # Defensive: ensure category_info is a dict
+        if category_info is None:
+            category_info = {}
+
         parts = []
-        
+
         # Use verified brand if available
         brand = product_data.get('verified_brand') or product_data.get('brand', '')
         if brand and brand.strip():
@@ -360,6 +373,5 @@ Generate ONE optimized title that follows the format and will appeal to customer
             parts = [product_data.get('original_title', 'Product')]
         
         return " ".join(parts)
-
 # For backward compatibility, create an alias
 EnhancedTitleGenerator = RobustEnhancedTitleGenerator

@@ -5,8 +5,12 @@ import sys
 import traceback
 import time
 import pandas as pd
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from typing import Dict
 
+# Add the current directory to Python path so we can import our modules
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 class SafeEnhancedTitleGenerator:
     """Wrapper to make EnhancedTitleGenerator safe for web interface"""
     
@@ -15,86 +19,84 @@ class SafeEnhancedTitleGenerator:
     
     def generate_ecommerce_title(self, product_data: Dict, category_info: Dict) -> str:
         """Safe wrapper for title generation with comprehensive error handling"""
-        
         try:
             # Try the enhanced generation
             title = self.original_generator.generate_ecommerce_title(product_data, category_info)
-            
-            # Ensure we got a valid string
             if title and isinstance(title, str) and len(title.strip()) > 0:
                 return title.strip()
             else:
                 raise ValueError("Empty or invalid title returned")
-                
         except Exception as e:
             print(f"   ⚠️  Enhanced generation failed ({e}), using fallback")
-            
             # Create a safe fallback title
             return self._create_safe_fallback_title(product_data, category_info)
-    
+
     def _create_safe_fallback_title(self, product_data: Dict, category_info: Dict) -> str:
         """Create a safe fallback title when enhanced generation fails"""
-        
         parts = []
-        
+
         # Add brand if available
         brand = product_data.get('brand', '')
         if brand:
             parts.append(str(brand).strip())
-        
-        # Add category
-        categoria = category_info.get('categoria', 'Product')
+
+        # Add category (safe for None)
+        categoria = category_info.get('categoria', 'Product') if category_info else 'Product'
         if categoria:
             parts.append(str(categoria).strip().title())
-        
+
         # Add description or original title
         description = (product_data.get('description', '') or 
                       product_data.get('original_title', '') or 
                       'Item')
-        
+
         # Take first few words from description
         desc_words = str(description).split()[:4]
         if desc_words:
             parts.extend(desc_words)
-        
+
+        # Add specs if available
+        for key in ['color', 'size', 'dimensions', 'model']:
+            value = product_data.get(key, '')
+            if value:
+                parts.append(str(value).strip())
+
         # Join and clean up
         title = ' '.join(str(part) for part in parts if part)
-        
+
         # Ensure we have something
         if not title:
             title = "Product Item"
-        
+
         # Limit length
         if len(title) > 150:
             title = title[:147] + "..."
-        
+
         return title
-# Add the current directory to Python path so we can import our modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from agents.tile_fixed_classifier import TileFixedCategoryClassifier
+    from agents.enhanced_title_generator import EnhancedTitleGenerator
     from agents.label_formatter import LabelFormatter
     
     class SimpleTilePipeline:
-        def __init__(self): # Note: proper indentation and __init__
+        def __init__(self):
             self.classifier = TileFixedCategoryClassifier()
-
+            
             # Wrap the enhanced generator with safety
             try:
-                from agents.enhanced_title_generator import EnhancedTitleGenerator
                 original_generator = EnhancedTitleGenerator()
                 self.generator = SafeEnhancedTitleGenerator(original_generator)
                 print("✓ Using Enhanced TitleGenerator with safety wrapper")
             except Exception as e:
-                print(f"⚠️ Enhanced generator failed to load: {e}")
+                print(f"⚠️  Enhanced generator failed to load: {e}")
                 # Fallback to basic generator
                 from agents.title_generator import TitleGenerator
                 self.generator = TitleGenerator()
                 print("✓ Using basic TitleGenerator as fallback")
-
+            
             self.formatter = LabelFormatter()
-
+        
         def process_raw_title(self, title):
             try:
                 product_data = {'description': title, 'original_title': title}
@@ -103,7 +105,9 @@ try:
                 if not category_match:
                     return {'success': False, 'errors': ['No category found'], 'input_title': title}
                 
+                # This will now use the safe wrapper
                 optimized_title = self.generator.generate_ecommerce_title(product_data, category_match)
+                
                 if not optimized_title:
                     return {'success': False, 'errors': ['Title generation failed'], 'input_title': title}
                 
@@ -117,6 +121,7 @@ try:
                     'category_match': category_match
                 }
             except Exception as e:
+                print(f"   ⚠️  Processing error for '{title}': {e}")
                 return {'success': False, 'errors': [str(e)], 'input_title': title}
     
     CompletePipeline = SimpleTilePipeline
@@ -171,106 +176,63 @@ def process_file():
                 'error': 'No file selected'
             }), 400
 
-        processing_type = request.form.get('type', 'messy')
-        
-        print(f"Processing file: {file.filename}, Type: {processing_type}")
+processing_type = request.form.get('type', 'messy')
+print(f"Processing file: {file.filename}, Type: {processing_type}")
 
-        # Read file content based on extension
-        try:
-            if file.filename.lower().endswith('.csv'):
-                content = file.read().decode('utf-8')
-                lines = content.strip().split('\n')
-                
-                # Use smart messy parser for "messy" processing type
-                if processing_type == 'messy':
-                    try:
-                        from agents.smart_messy_parser import SmartMessyParser
-                        messy_parser = SmartMessyParser()
-                        
-                        products = []
-                        for line in lines:
-                            if line.strip():
-                                parsed = messy_parser.parse_messy_title(line.strip())
-                                products.append(parsed)
-                        
-                        titles = [p['original_title'] for p in products]
-                        structured_products = products
-                        
-                    except ImportError:
-                        print("SmartMessyParser not available, falling back to simple parsing")
-                        titles = [line.strip() for line in lines if line.strip()]
-                        structured_products = None
-                        
-                elif len(lines) > 1 and ',' in lines[0]:
-                    # Regular structured CSV processing
-                    products = []
-                    headers = [h.strip().strip('"') for h in lines[0].split(',')]
-                    print(f"CSV Headers detected: {headers}")
-                    
-                    for line in lines[1:]:
-                        if line.strip():
-                            values = [v.strip().strip('"') for v in line.split(',')]
-                            product = {}
-                            
-                            for i, header in enumerate(headers):
-                                if i < len(values) and values[i]:
-                                    header_lower = header.lower()
-                                    if any(h in header_lower for h in ['titulo', 'title', 'nombre']):
-                                        product['description'] = values[i]
-                                        product['original_title'] = values[i]
-                                    elif 'departamento' in header_lower:
-                                        product['departamento'] = values[i]
-                                    elif 'familia' in header_lower:
-                                        product['familia'] = values[i]
-                                    elif 'categoria' in header_lower:
-                                        product['categoria'] = values[i]
-                            
-                            if 'description' not in product and values:
-                                product['description'] = values[0]
-                                product['original_title'] = values[0]
-                            
-                            products.append(product)
-                    
-                    titles = [p.get('description', p.get('original_title', '')) for p in products]
-                    structured_products = products
-                    
-                else:
-                    # No header or not CSV format, treat as plain text
-                    titles = [line.strip() for line in lines if line.strip()]
-                    structured_products = None
-                            
-            elif file.filename.lower().endswith(('.xlsx', '.xls')):
-                # Read Excel file
-                try:
-                    df = pd.read_excel(file)
-                    # Get first column
-                    titles = df.iloc[:, 0].dropna().astype(str).tolist()
-                    structured_products = None
-                except Exception as e:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Error reading Excel file: {str(e)}'
-                    }), 400
-                            
-            else:
-                # Plain text file
-                content = file.read().decode('utf-8')
-                titles = [line.strip() for line in content.strip().split('\n') if line.strip()]
+# Read file content based on extension
+try:
+    if file.filename.lower().endswith('.csv'):
+        content = file.read().decode('utf-8')
+        lines = content.strip().split('\n')
+        if processing_type == 'messy':
+            try:
+                from agents.smart_messy_parser import SmartMessyParser
+                messy_parser = SmartMessyParser()
+                products = []
+                for line in lines:
+                    if line.strip():
+                        parsed = messy_parser.parse_messy_title(line.strip())
+                        products.append(parsed)
+                titles = [p['original_title'] for p in products]
+                structured_products = products
+            except ImportError:
+                print("SmartMessyParser not available, falling back to simple parsing")
+                titles = [line.strip() for line in lines if line.strip()]
                 structured_products = None
-
-        except UnicodeDecodeError:
-            return jsonify({
-                'success': False,
-                'error': 'File encoding not supported. Please use UTF-8 encoded files.'
-            }), 400
-
-        if not titles:
-            return jsonify({
-                'success': False,
-                'error': 'No valid titles found in file'
-            }), 400
-
-        print(f"Found {len(titles)} titles to process")
+        else:
+            titles = [line.strip() for line in lines if line.strip()]
+            structured_products = None
+    elif file.filename.lower().endswith(('.xlsx', '.xls')):
+        df = pd.read_excel(file)
+        if not df.empty:
+            first_col = df.columns[0]
+            titles = df[first_col].dropna().astype(str).tolist()
+            structured_products = None
+        else:
+            titles = []
+            structured_products = None
+    elif file.filename.lower().endswith('.txt'):
+        content = file.read().decode('utf-8')
+        titles = [line.strip() for line in content.split('\n') if line.strip()]
+        structured_products = None
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Unsupported file format. Please use CSV, Excel, or TXT files. Please use UTF-8 encoded files.'
+        }), 400
+except UnicodeDecodeError:
+    return jsonify({
+        'success': False,
+        'error': 'File encoding error. Please use UTF-8 encoded files.'
+    }), 400
+except Exception as e:
+    print(f"Error parsing file: {e}")
+    traceback.print_exc()
+    return jsonify({
+        'success': False,
+        'error': f'File parsing error: {str(e)}'
+    }), 400
+print(f"Found {len(titles)} titles to process")
 
         # Initialize pipeline
         try:
@@ -284,36 +246,24 @@ def process_file():
         # Process titles
         results = []
         successful = 0
-        
         for i, title in enumerate(titles):
             print(f"Processing title {i+1}/{len(titles)}: {title}")
-            
             try:
                 if processing_type == 'messy':
-                    # Use the complete pipeline for raw titles
                     result = pipeline.process_raw_title(title)
                 else:
-                    # For structured data, use the structured product info
                     if 'structured_products' in locals() and structured_products and i < len(structured_products):
                         product_data = structured_products[i]
                         print(f"   Using structured data: Dept={product_data.get('departamento', 'N/A')}, Cat={product_data.get('categoria', 'N/A')}")
                     else:
-                        # Fallback to simple product dict
                         product_data = {
                             'description': title,
                             'original_title': title
                         }
-                    
-                    # Find category
                     category_match = pipeline.classifier.find_category_match(product_data)
-                    
                     if category_match:
-                        # Generate title
                         optimized_title = pipeline.generator.generate_ecommerce_title(product_data, category_match)
-                        
-                        # Create label
                         store_label = pipeline.formatter.format_store_label(optimized_title) if optimized_title else None
-                        
                         result = {
                             'input_title': title,
                             'success': bool(optimized_title and store_label),
@@ -331,15 +281,10 @@ def process_file():
                             'store_label': None,
                             'errors': ['No category match found']
                         }
-                
                 results.append(result)
-                
                 if result.get('success', False):
                     successful += 1
-                    
-                # Add small delay to simulate processing
                 time.sleep(0.1)
-                
             except Exception as e:
                 print(f"Error processing title '{title}': {str(e)}")
                 results.append({
@@ -366,7 +311,6 @@ def process_file():
             'success': False,
             'error': f'Server error: {str(e)}'
         }), 500
-
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -376,6 +320,9 @@ def health_check():
             'pipeline_available': CompletePipeline is not None,
             'frontend_available': os.path.exists('frontend.html')
         })
+       # pass  # placeholder for your logic
+   # except Exception as e:
+        traceback.print_exc()  # <-- Add this to print the stack trace
     except Exception as e:
         return jsonify({
             'status': 'error',
