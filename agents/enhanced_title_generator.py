@@ -1,377 +1,324 @@
-import openai
-import os
+# agents/enhanced_title_generator.py (ROBUST VERSION)
 import json
 import re
-from typing import Dict, Optional, List
-from dotenv import load_dotenv
-
-load_dotenv()
+import time
+from typing import Dict, List, Optional
+from openai import OpenAI
+import random
 
 class RobustEnhancedTitleGenerator:
     def __init__(self, api_key: str = None):
-        """Initialize OpenAI client with web search capabilities"""
-        self.client = openai.OpenAI(
-            api_key=api_key or os.getenv('OPENAI_API_KEY')
-        )
-        self._last_research_data = {}  # Store last research for debugging
-    
-    def generate_ecommerce_title(self, product_data: Dict, category_info: Dict) -> str:
-        """
-        Generate SEO-optimized ecommerce title with web research validation
-        """
+        """Initialize with OpenAI API key and robust settings"""
+        if api_key:
+            self.client = OpenAI(api_key=api_key)
+            self.web_search_enabled = True
+            print("✓ Robust Enhanced Title Generator with web search initialized")
+        else:
+            self.client = None
+            self.web_search_enabled = False
+            print("⚠️  Enhanced Title Generator initialized without web search (no API key)")
         
-        try:
-            # Step 1: Validate and enhance product information with web research
-            enhanced_product_data = self._enhance_with_web_research(product_data)
-            
-            # Step 2: Verify category classification makes sense
-            category_validation = self._validate_category_with_web_search(
-                enhanced_product_data, category_info
-            )
-            
-            # Step 3: Use best available category information
-            final_category_info = category_validation.get('corrected_category', category_info)
-            
-            # Step 4: Generate title with enriched data
-            return self._generate_title_with_context(enhanced_product_data, final_category_info)
-            
-        except Exception as e:
-            print(f"   ⚠️  Enhanced generation failed: {e}")
-            # Fallback to basic title generation
-            return self._create_enhanced_fallback_title(product_data, category_info)
-    
-    def _safe_json_parse(self, text: str) -> Dict:
-        """Safely parse JSON with multiple fallback strategies"""
+        self._last_research_data = {}
+        self.api_call_count = 0
+        self.failed_requests = 0
+        self.successful_requests = 0
         
-        # Strategy 1: Try direct JSON parse
+        # Rate limiting settings
+        self.base_delay = 0.5  # Base delay between requests
+        self.max_retries = 3
+        self.backoff_multiplier = 2
+    
+    def _safe_api_call(self, prompt: str, max_tokens: int = 300, retries: int = 3) -> Optional[str]:
+        """Make a safe API call with retries and exponential backoff"""
+        
+        for attempt in range(retries):
+            try:
+                # Progressive delay to avoid rate limits
+                delay = self.base_delay * (2 ** attempt) + random.uniform(0, 0.5)
+                if attempt > 0:
+                    print(f"   🔄 Retry attempt {attempt + 1}/{retries} (waiting {delay:.1f}s)")
+                    time.sleep(delay)
+                
+                response = self.client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are a product expert. Always respond with valid JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.1,
+                    max_tokens=max_tokens,
+                    timeout=15  # 15 second timeout
+                )
+                
+                self.api_call_count += 1
+                self.successful_requests += 1
+                return response.choices[0].message.content.strip()
+                
+            except Exception as e:
+                self.failed_requests += 1
+                error_msg = str(e).lower()
+                
+                if "rate limit" in error_msg:
+                    print(f"   ⚠️  Rate limit hit, waiting longer...")
+                    time.sleep(5 + (attempt * 2))  # Longer wait for rate limits
+                elif "timeout" in error_msg:
+                    print(f"   ⚠️  Timeout on attempt {attempt + 1}")
+                else:
+                    print(f"   ⚠️  API error: {str(e)[:50]}...")
+                
+                if attempt == retries - 1:
+                    print(f"   ❌ All {retries} attempts failed")
+                    return None
+        
+        return None
+    
+    def _extract_json_safely(self, text: str) -> Optional[dict]:
+        """Extract JSON from text with multiple fallback strategies"""
+        
+        if not text:
+            return None
+        
+        # Strategy 1: Direct JSON parse
         try:
             return json.loads(text)
-        except json.JSONDecodeError:
+        except:
             pass
         
-        # Strategy 2: Clean up markdown formatting
+        # Strategy 2: Remove markdown formatting
         try:
             cleaned = text.strip()
-            if cleaned.startswith('```json'):
-                cleaned = cleaned.replace('```json', '').replace('```', '').strip()
-            elif cleaned.startswith('```'):
-                cleaned = cleaned.replace('```', '').strip()
+            if '```json' in cleaned:
+                start = cleaned.find('{')
+                end = cleaned.rfind('}') + 1
+                if start != -1 and end > start:
+                    cleaned = cleaned[start:end]
+            elif '```' in cleaned:
+                lines = cleaned.split('\n')
+                json_lines = [line for line in lines if not line.strip().startswith('```')]
+                cleaned = '\n'.join(json_lines)
             
             return json.loads(cleaned)
-        except json.JSONDecodeError:
+        except:
             pass
         
-        # Strategy 3: Extract JSON from text using regex
+        # Strategy 3: Find JSON block in text
         try:
-            json_pattern = r'\{[^{}]*\}'
-            matches = re.findall(json_pattern, text, re.DOTALL)
-            if matches:
-                # Try the largest match (most likely to be complete)
-                largest_match = max(matches, key=len)
-                return json.loads(largest_match)
-        except (json.JSONDecodeError, ValueError):
+            start = text.find('{')
+            end = text.rfind('}') + 1
+            if start != -1 and end > start:
+                json_block = text[start:end]
+                return json.loads(json_block)
+        except:
             pass
         
-        # Strategy 4: Extract key-value pairs manually
+        # Strategy 4: Try to fix common JSON issues
         try:
-            result = {}
-            
-            # Look for common patterns
-            patterns = {
-                'verified_brand': r'"verified_brand":\s*"([^"]*)"',
-                'verified_product_type': r'"verified_product_type":\s*"([^"]*)"',
-                'product_category': r'"product_category":\s*"([^"]*)"',
-                'is_construction_hardware': r'"is_construction_hardware":\s*(true|false)',
-                'category_makes_sense': r'"category_makes_sense":\s*(true|false)',
-                'confidence': r'"confidence":\s*([0-9.]+)',
-                'recommendation': r'"recommendation":\s*"([^"]*)"'
-            }
-            
-            for key, pattern in patterns.items():
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    value = match.group(1)
-                    if key in ['is_construction_hardware', 'category_makes_sense']:
-                        result[key] = value.lower() == 'true'
-                    elif key == 'confidence':
-                        result[key] = float(value)
-                    else:
-                        result[key] = value
-            
-            if result:
-                return result
-                
-        except Exception:
+            # Fix common issues like trailing commas, single quotes, etc.
+            fixed = text.strip()
+            fixed = re.sub(r',\s*}', '}', fixed)  # Remove trailing commas
+            fixed = re.sub(r',\s*]', ']', fixed)  # Remove trailing commas in arrays
+            fixed = fixed.replace("'", '"')  # Replace single quotes
+            return json.loads(fixed)
+        except:
             pass
         
-        # Strategy 5: Return error object
-        return {'error': 'JSON parsing failed', 'raw_response': text[:200] + '...' if len(text) > 200 else text}
+        return None
     
-    def _enhance_with_web_research(self, product_data: Dict) -> Dict:
-        """Enhance product data by researching current market information"""
-        
+    def _enhance_with_web_search(self, product_data: Dict) -> Dict:
+        """Enhanced web search with comprehensive error handling"""
         enhanced_data = product_data.copy()
         
-        # Extract key product identifiers for search
-        search_terms = []
-        
-        # Get brand if available
-        if 'brand' in product_data:
-            search_terms.append(product_data['brand'])
-        
-        # Get product type/description
-        for field in ['producto_tipo', 'description', 'original_title']:
-            if field in product_data and product_data[field]:
-                # Take first few meaningful words
-                words = product_data[field].split()[:4]
-                search_terms.extend(words)
-                break
-        
-        # Construct search query
-        search_query = ' '.join(search_terms[:6])  # Limit to avoid too long queries
+        if not self.web_search_enabled:
+            print("   ⚠️  Web search disabled (no API key)")
+            return enhanced_data
         
         try:
-            # Use OpenAI to research the product and get market context
-            research_prompt = f"""Analyze this product and provide market information. Respond with valid JSON only.
+            # Create search query
+            title = product_data.get('original_title', product_data.get('description', ''))
+            brand = product_data.get('brand', '')
+            product_type = product_data.get('producto_tipo', '')
+            
+            search_query = f"{title} {brand} {product_type}".strip()
+            
+            print(f"   🔍 Researching: {search_query[:50]}...")
+            
+            # Simplified, robust prompt
+            research_prompt = f"""Analyze this construction/hardware product: {search_query}
 
-PRODUCT: {search_query}
-
-Provide JSON with these exact fields:
+Return ONLY this JSON (no other text):
 {{
-    "verified_brand": "Brand name or empty if unknown",
-    "verified_product_type": "What this product actually is",
-    "product_category": "Department/category this belongs to",
-    "seo_keywords": ["keyword1", "keyword2", "keyword3"],
-    "is_construction_hardware": true or false,
-    "suggested_department": "Best department for this product"
-}}
+    "verified_product_type": "specific product type",
+    "product_category": "department category",
+    "is_construction_hardware": true,
+    "confidence": 0.8
+}}"""
 
-IMPORTANT: Return only valid JSON, no additional text or formatting."""
-
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a product expert. Always respond with valid JSON only, no markdown or extra text."},
-                    {"role": "user", "content": research_prompt}
-                ],
-                temperature=0.2,
-                max_tokens=400
-            )
+            # Make safe API call
+            research_text = self._safe_api_call(research_prompt, max_tokens=200, retries=3)
             
-            # Parse research results with robust error handling
-            research_text = response.choices[0].message.content.strip()
-            research_data = self._safe_json_parse(research_text)
+            if not research_text:
+                print("   ⚠️  API call failed completely, using fallback")
+                enhanced_data['web_research'] = {
+                    'error': 'api_failed',
+                    'fallback_used': True
+                }
+                enhanced_data['verified_product_type'] = title
+                enhanced_data['is_construction_hardware'] = True
+                return enhanced_data
             
-            if 'error' not in research_data:
-                # Enhance original data with research findings
-                enhanced_data['web_research'] = research_data
-                enhanced_data['verified_brand'] = research_data.get('verified_brand', product_data.get('brand', ''))
-                enhanced_data['verified_product_type'] = research_data.get('verified_product_type', product_data.get('producto_tipo', ''))
-                enhanced_data['seo_keywords'] = research_data.get('seo_keywords', [])
-                enhanced_data['suggested_category'] = research_data.get('product_category', '')
-                enhanced_data['is_construction_hardware'] = research_data.get('is_construction_hardware', False)
-                
-                # Store for debugging
-                self._last_research_data = research_data
-                
-                print(f"   ✓ Web research enhanced: {research_data.get('verified_product_type', 'Unknown')}")
-            else:
-                print(f"   ⚠️  Web research parsing failed: {research_data.get('error', 'Unknown error')}")
-                enhanced_data['web_research'] = research_data
-                self._last_research_data = research_data
-        
+            # Extract JSON safely
+            research_data = self._extract_json_safely(research_text)
+            
+            if research_data and isinstance(research_data, dict):
+                # Validate required fields
+                required_fields = ['verified_product_type']
+                if all(field in research_data for field in required_fields):
+                    # Success!
+                    enhanced_data['web_research'] = research_data
+                    enhanced_data['verified_product_type'] = research_data.get('verified_product_type', title)
+                    enhanced_data['is_construction_hardware'] = research_data.get('is_construction_hardware', True)
+                    enhanced_data['research_confidence'] = research_data.get('confidence', 0.8)
+                    
+                    print(f"   ✓ Web research enhanced: {research_data.get('verified_product_type', 'Unknown')}")
+                    return enhanced_data
+            
+            # If we get here, JSON parsing failed
+            print("   ⚠️  JSON parsing failed, using intelligent fallback")
+            
+            # Intelligent fallback - extract what we can from the text
+            fallback_type = title
+            if research_text:
+                # Try to extract product type from text even if JSON failed
+                type_patterns = [
+                    r'"verified_product_type":\s*"([^"]+)"',
+                    r'product.type.*?:\s*"?([^",\n]+)',
+                    r'type.*?:\s*([A-Za-z\s]+)'
+                ]
+                for pattern in type_patterns:
+                    match = re.search(pattern, research_text, re.IGNORECASE)
+                    if match:
+                        fallback_type = match.group(1).strip()
+                        break
+            
+            enhanced_data['web_research'] = {
+                'error': 'json_parse_failed',
+                'raw_response': research_text[:100] if research_text else 'No response',
+                'fallback_used': True
+            }
+            enhanced_data['verified_product_type'] = fallback_type
+            enhanced_data['is_construction_hardware'] = True
+            enhanced_data['research_confidence'] = 0.3  # Low confidence for fallback
+            
+            print(f"   ⚠️  Using fallback type: {fallback_type}")
+            
         except Exception as e:
-            print(f"   ⚠️  Web research failed: {e}")
-            enhanced_data['web_research'] = {'error': str(e)}
-            self._last_research_data = {'error': str(e)}
+            print(f"   ❌ Web research failed completely: {str(e)[:50]}...")
+            enhanced_data['web_research'] = {
+                'error': 'complete_failure',
+                'error_details': str(e)[:100]
+            }
+            enhanced_data['verified_product_type'] = product_data.get('original_title', 'Unknown')
+            enhanced_data['is_construction_hardware'] = True
+            enhanced_data['research_confidence'] = 0.1
         
         return enhanced_data
     
-    def _validate_category_with_web_search(self, product_data: Dict, category_info: Dict) -> Dict:
-        """Validate if the assigned category makes sense based on web research"""
-
-        # Defensive: ensure category_info is a dict
-        if category_info is None:
-            category_info = {}
-
-        validation_result = {
-            'original_category': category_info,
-            'validation_passed': True,
-            'confidence': 0.8,
-            'corrected_category': None
+    def generate_ecommerce_title(self, product_data: Dict, category_info: Dict) -> str:
+        """Generate optimized ecommerce title with robust error handling"""
+        
+        try:
+            # Enhance with web search
+            enhanced_data = self._enhance_with_web_search(product_data)
+            
+            # Extract key information with multiple fallbacks
+            brand = (enhanced_data.get('verified_brand') or 
+                    enhanced_data.get('brand', '') or 
+                    self._extract_brand_from_title(enhanced_data.get('original_title', '')))
+            
+            product_type = (enhanced_data.get('verified_product_type') or 
+                           enhanced_data.get('producto_tipo', '') or
+                           enhanced_data.get('original_title', ''))
+            
+            specifications = enhanced_data.get('specifications', enhanced_data.get('especificaciones', ''))
+            color = enhanced_data.get('color', '')
+            
+            # Build optimized title intelligently
+            title_parts = []
+            
+            # Start with verified product type
+            if product_type and len(product_type.strip()) > 3:
+                # Clean and format product type
+                clean_type = product_type.strip().title()
+                # Remove redundant words
+                clean_type = re.sub(r'\b(Product|Item|Producto)\b', '', clean_type, flags=re.IGNORECASE).strip()
+                if clean_type:
+                    title_parts.append(clean_type)
+            
+            # Add specifications if meaningful
+            if specifications and len(specifications.strip()) > 2:
+                specs = specifications.strip()
+                if not any(spec.lower() in product_type.lower() for spec in specs.split()):
+                    title_parts.append(specs)
+            
+            # Add color if specific
+            if color and len(color.strip()) > 2 and color.lower() not in ['n/a', 'none', 'standard']:
+                title_parts.append(color.title())
+            
+            # Add brand if reliable
+            if brand and len(brand.strip()) > 2 and brand.lower() not in ['n/a', 'unknown', 'generic']:
+                title_parts.append(brand)
+            
+            # Construct final title
+            if title_parts:
+                optimized_title = ' '.join(title_parts)
+                # Clean up the title
+                optimized_title = re.sub(r'\s+', ' ', optimized_title).strip()
+                optimized_title = optimized_title[:60]  # Reasonable length limit
+            else:
+                # Ultimate fallback
+                optimized_title = enhanced_data.get('original_title', enhanced_data.get('description', 'Product'))
+            
+            print(f"   ✓ Generated title: {optimized_title}")
+            return optimized_title
+            
+        except Exception as e:
+            print(f"   ❌ Title generation failed: {e}")
+            # Ultimate fallback
+            return product_data.get('original_title', product_data.get('description', 'Product'))
+    
+    def _extract_brand_from_title(self, title: str) -> str:
+        """Extract potential brand from title using common patterns"""
+        if not title:
+            return ""
+        
+        # Common brand patterns in construction/hardware
+        known_brands = ['BOSCH', 'MAKITA', 'DEWALT', 'MILWAUKEE', 'STANLEY', 'BLACK+DECKER', 
+                       'RYOBI', 'CRAFTSMAN', 'KOBALT', 'HUSKY', 'RIDGID', 'PORTER-CABLE']
+        
+        title_upper = title.upper()
+        for brand in known_brands:
+            if brand in title_upper:
+                return brand.title()
+        
+        # Look for brand-like patterns (capitalized words)
+        words = title.split()
+        for word in words:
+            if word.isupper() and len(word) > 2:
+                return word.title()
+        
+        return ""
+    
+    def get_processing_stats(self) -> Dict:
+        """Get processing statistics"""
+        total_requests = self.successful_requests + self.failed_requests
+        success_rate = (self.successful_requests / total_requests * 100) if total_requests > 0 else 0
+        
+        return {
+            'total_api_calls': self.api_call_count,
+            'successful_requests': self.successful_requests,
+            'failed_requests': self.failed_requests,
+            'success_rate': f"{success_rate:.1f}%"
         }
 
-        # Check if we have web research data
-        web_research = product_data.get('web_research', {})
-        if 'error' in web_research:
-            return validation_result
-
-        suggested_category = web_research.get('product_category', '')
-        verified_product_type = web_research.get('verified_product_type', '')
-
-        if not suggested_category:
-            return validation_result
-
-        try:
-            # Ask AI to compare categories
-            comparison_prompt = f"""Compare these product categorizations. Respond with valid JSON only.
-
-PRODUCT: {product_data.get('original_title', 'Unknown')}
-VERIFIED TYPE: {verified_product_type}
-
-CURRENT: {category_info.get('categoria', 'Unknown')}
-SUGGESTED: {suggested_category}
-
-Return JSON with these exact fields:
-{{
-    "category_makes_sense": true or false,
-    "confidence": 0.5,
-    "recommendation": "keep_current" or "use_research",
-    "reasoning": "Brief explanation"
-}}
-
-IMPORTANT: Return only valid JSON, no additional text."""
-
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a categorization expert. Always respond with valid JSON only."},
-                    {"role": "user", "content": comparison_prompt}
-                ],
-                temperature=0.1,
-                max_tokens=250
-            )
-
-            validation_text = response.choices[0].message.content.strip()
-            validation_data = self._safe_json_parse(validation_text)
-
-            if 'error' not in validation_data:
-                validation_result['validation_passed'] = validation_data.get('category_makes_sense', True)
-                validation_result['confidence'] = validation_data.get('confidence', 0.5)
-
-                # If category doesn't make sense, create a corrected version
-                if not validation_data.get('category_makes_sense', True):
-                    corrected_category = category_info.copy()
-                    corrected_category['categoria'] = suggested_category
-                    corrected_category['web_research_corrected'] = True
-                    corrected_category['original_categoria'] = category_info.get('categoria')
-                    corrected_category['correction_reason'] = validation_data.get('reasoning', 'Category mismatch detected')
-
-                    validation_result['corrected_category'] = corrected_category
-                    print(f"   ⚠️  Category corrected: {category_info.get('categoria')} → {suggested_category}")
-                    print(f"      Reason: {validation_data.get('reasoning', 'Category mismatch detected')}")
-            else:
-                print(f"   ⚠️  Category validation parsing failed: {validation_data.get('error', 'Unknown')}")
-
-        except Exception as e:
-            print(f"   ⚠️  Category validation failed: {e}")
-
-        return validation_result
-    
-    def _generate_title_with_context(self, enhanced_product_data: Dict, category_info: Dict) -> str:
-        """Generate title using enhanced product data and validated category"""
-
-        # Defensive: ensure category_info is a dict
-        if category_info is None:
-            category_info = {}
-
-        naming_rule = category_info.get('nomenclatura_sugerida', 'Marca + Tipo + Especificaciones')
-        example = category_info.get('ejemplo_aplicado', '')
-        category = category_info.get('categoria', 'General')
-        was_corrected = category_info.get('web_research_corrected', False)
-        
-        # Use verified information from web research when available
-        verified_brand = enhanced_product_data.get('verified_brand', enhanced_product_data.get('brand', ''))
-        verified_type = enhanced_product_data.get('verified_product_type', enhanced_product_data.get('producto_tipo', ''))
-        seo_keywords = enhanced_product_data.get('seo_keywords', [])
-        
-        # Check if category was corrected
-        was_corrected = category_info.get('web_research_corrected', False)
-        
-        # Build enhanced prompt
-        prompt = f"""Create an optimized ecommerce title for this product.
-
-PRODUCT INFO:
-- Original: {enhanced_product_data.get('original_title', 'Unknown')}
-- Verified Type: {verified_type or 'Unknown Type'}
-- Brand: {verified_brand or 'Generic'}
-- Category: {category}
-
-NAMING RULES:
-- Format: {naming_rule}
-- Example: {example}
-
-REQUIREMENTS:
-- Follow the naming format above
-- Include brand, type, and key specifications
-- Keep under 150 characters
-- Use professional formatting
-- Include important keywords naturally
-
-Generate ONE optimized title that follows the format and will appeal to customers."""
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are an ecommerce title expert. Create compelling, professional product titles."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=150
-            )
-            
-            title = response.choices[0].message.content.strip()
-            
-            # Clean up any quotes or extra formatting
-            title = title.replace('"', '').replace("'", "").strip()
-            
-            # Remove any leading numbers or bullets if present
-            title = re.sub(r'^\d+\.\s*', '', title)
-            title = re.sub(r'^[-•]\s*', '', title)
-            
-            return title
-            
-        except Exception as e:
-            print(f"   ⚠️  Title generation failed: {e}")
-            # Fallback: create basic title from enhanced data
-            return self._create_enhanced_fallback_title(enhanced_product_data, category_info)
-    
-    def _create_enhanced_fallback_title(self, product_data: Dict, category_info: Dict) -> str:
-        """Create a fallback title using enhanced data"""
-
-        # Defensive: ensure category_info is a dict
-        if category_info is None:
-            category_info = {}
-
-        parts = []
-
-        # Use verified brand if available
-        brand = product_data.get('verified_brand') or product_data.get('brand', '')
-        if brand and brand.strip():
-            parts.append(brand.strip())
-        
-        # Use verified product type
-        product_type = (product_data.get('verified_product_type') or 
-                       product_data.get('producto_tipo', '') or 
-                       category_info.get('categoria', ''))
-        if product_type and product_type.strip():
-            parts.append(product_type.strip().title())
-        
-        # Add key specifications
-        for key in ['dimensions', 'size', 'color', 'model', 'material', 'finish']:
-            if key in product_data and product_data[key] and str(product_data[key]).strip():
-                parts.append(str(product_data[key]).strip())
-        
-        # Add SEO keywords if available and we need more content
-        seo_keywords = product_data.get('seo_keywords', [])
-        if seo_keywords and len(parts) < 4:
-            parts.extend([kw for kw in seo_keywords[:2] if kw not in ' '.join(parts)])
-        
-        # Ensure we have at least something
-        if not parts:
-            parts = [product_data.get('original_title', 'Product')]
-        
-        return " ".join(parts)
-# For backward compatibility, create an alias
+# Backward compatibility - keep the same class name
 EnhancedTitleGenerator = RobustEnhancedTitleGenerator

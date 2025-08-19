@@ -1,0 +1,27 @@
+item_number,original_title,optimized_title,store_label,success,quality_score,web_search_used,web_search_success,research_confidence,category_found,errors
+1,TUBO FLEXIBLE LIQUIDTIGHT 1 1/4 ANCLO,Flexible Liquidtight Conduit Tubo,Flexible Liquidtight Conduit Tubo,True,1.0,False,False,N/A,FLEXITUBO,
+2,TAPADERA CUADRADA DE METAL,Metal Square Cover Tapadera,Metal Square Cover Tapadera,True,1.0,False,False,N/A,TAPADERA,
+3,TAPADERA OCTAGONAL DE METAL,Metal Octagonal Cover Tapadera,Metal Octagonal Cover Tapadera,True,1.0,False,False,N/A,TAPADERA,
+4,TAPADERA RECTANGULAR DE METAL,Rectangular Metal Cover Tapadera,Rectangular Metal Cover Tapadera,True,1.0,False,False,N/A,PERFILES RECTANGULARES,
+5,ARBOR SIENA MATE RECT 20X100,Siding Arbor,Siding Arbor,True,1.0,False,False,N/A,PERFILES RECTANGULARES,
+6,ARBOR CANELA MATE RECT 20X100,Wood Board Arbor,Wood Board Arbor,True,1.0,False,False,N/A,PERFILES RECTANGULARES,
+7,ARBOR SEPIA MATE RECT 20X100,Wood Panel Arbor,Wood Panel Arbor,True,1.0,False,False,N/A,PERFILES RECTANGULARES,
+8,TANZANIA MIEL MATE RECT 20X120,Rectangular Tile Tanzania,Rectangular Tile Tanzania,True,1.0,False,False,N/A,MONOCOLOR,
+9,TANZANIA TABACO MATE RECT 20X120,Tabaco Mate Tanzania,Tabaco Mate Tanzania,True,1.0,False,False,N/A,MONOCOLOR,
+10,TANZANIA AVELLANA MATE RECT 20X120,Flooring Tanzania,Flooring Tanzania,True,1.0,False,False,N/A,MONOCOLOR,
+11,PETRA GRIS MATE RECT 60X60,Ceramic Tile Petra,Ceramic Tile Petra,True,1.0,False,False,N/A,MONOCOLOR,
+12,PETRA CAFE MATE RECT 60X60,Cafe Table Petra,Cafe Table Petra,True,1.0,False,False,N/A,MONOCOLOR,
+13,"LIJADORA ORBITAL GSS 18V-10 1/4', BARE T",Orbital Sander Lijadora,Orbital Sander Lijadora,True,1.0,False,False,N/A,LIJADORAS ALAMBRICAS,
+14,ENSENADA MARRON BRILLANTE 43X43,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+15,ATITLAN MARRON BRILLANTE 43X43,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+16,ENSENADA AZUL BRILLANTE 43X43,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+17,ENSENADA VERDE BRILLANTE 43X43,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+18,ATITLAN VERDE BRILLANTE 43X43,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+19,ATITLAN AZUL BRILLANTE 43X43,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+20,ARRANCADOR MAGNETICO 9-13 AMP. CAJA MET,Magnetic Starter Arrancador,Magnetic Starter Arrancador,True,1.0,False,False,N/A,PASACORRIENTES Y ARRANCADORES,
+21,ARRANCADOR MAGNETICO 12-18 AMP. CAJA MET,Magnetic Starter Arrancador,Magnetic Starter Arrancador,True,1.0,False,False,N/A,PASACORRIENTES Y ARRANCADORES,
+22,ARRANCADOR MAGNETICO 17-25 AMP. CAJA MET,Magnetic Starter Arrancador,Magnetic Starter Arrancador,True,1.0,False,False,N/A,PASACORRIENTES Y ARRANCADORES,
+23,ARRANCADOR MAGNETICO 23-32 AMP. CAJA MET,Magnetic Starter Arrancador,Magnetic Starter Arrancador,True,1.0,False,False,N/A,PASACORRIENTES Y ARRANCADORES,
+24,BIMETALICO NXR- 25 7-10 AMP.,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+25,BIMETALICO NXR- 25 9-13 AMP.,,,False,0.0,False,False,N/A,NOT FOUND,No category found
+26,BIMETALICO NXR- 25 12-18 AMP.,,,False,0.0,False,False,N/A,NOT FOUND,No category found

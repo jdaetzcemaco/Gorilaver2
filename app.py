@@ -8,6 +8,11 @@ import pandas as pd
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from typing import Dict
+# Add this near the top of app.py after imports
+from dotenv import load_dotenv
+load_dotenv()  # This loads the .env file
+# Add this import at the top
+from processing_reviewer import ProcessingReviewer
 
 # Add the current directory to Python path so we can import our modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -85,7 +90,7 @@ try:
             
             # Wrap the enhanced generator with safety
             try:
-                original_generator = EnhancedTitleGenerator()
+                original_generator = EnhancedTitleGenerator(os.getenv('OPENAI_API_KEY'))
                 self.generator = SafeEnhancedTitleGenerator(original_generator)
                 print("✓ Using Enhanced TitleGenerator with safety wrapper")
             except Exception as e:
@@ -176,63 +181,63 @@ def process_file():
                 'error': 'No file selected'
             }), 400
 
-processing_type = request.form.get('type', 'messy')
-print(f"Processing file: {file.filename}, Type: {processing_type}")
+        processing_type = request.form.get('type', 'messy')
+        print(f"Processing file: {file.filename}, Type: {processing_type}")
 
-# Read file content based on extension
-try:
-    if file.filename.lower().endswith('.csv'):
-        content = file.read().decode('utf-8')
-        lines = content.strip().split('\n')
-        if processing_type == 'messy':
-            try:
-                from agents.smart_messy_parser import SmartMessyParser
-                messy_parser = SmartMessyParser()
-                products = []
-                for line in lines:
-                    if line.strip():
-                        parsed = messy_parser.parse_messy_title(line.strip())
-                        products.append(parsed)
-                titles = [p['original_title'] for p in products]
-                structured_products = products
-            except ImportError:
-                print("SmartMessyParser not available, falling back to simple parsing")
-                titles = [line.strip() for line in lines if line.strip()]
+        # Read file content based on extension
+        try:
+            if file.filename.lower().endswith('.csv'):
+                content = file.read().decode('utf-8')
+                lines = content.strip().split('\n')
+                if processing_type == 'messy':
+                    try:
+                        from agents.smart_messy_parser import SmartMessyParser
+                        messy_parser = SmartMessyParser()
+                        products = []
+                        for line in lines:
+                            if line.strip():
+                                parsed = messy_parser.parse_messy_title(line.strip())
+                                products.append(parsed)
+                        titles = [p['original_title'] for p in products]
+                        structured_products = products
+                    except ImportError:
+                        print("SmartMessyParser not available, falling back to simple parsing")
+                        titles = [line.strip() for line in lines if line.strip()]
+                        structured_products = None
+                else:
+                    titles = [line.strip() for line in lines if line.strip()]
+                    structured_products = None
+            elif file.filename.lower().endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file)
+                if not df.empty:
+                    first_col = df.columns[0]
+                    titles = df[first_col].dropna().astype(str).tolist()
+                    structured_products = None
+                else:
+                    titles = []
+                    structured_products = None
+            elif file.filename.lower().endswith('.txt'):
+                content = file.read().decode('utf-8')
+                titles = [line.strip() for line in content.split('\n') if line.strip()]
                 structured_products = None
-        else:
-            titles = [line.strip() for line in lines if line.strip()]
-            structured_products = None
-    elif file.filename.lower().endswith(('.xlsx', '.xls')):
-        df = pd.read_excel(file)
-        if not df.empty:
-            first_col = df.columns[0]
-            titles = df[first_col].dropna().astype(str).tolist()
-            structured_products = None
-        else:
-            titles = []
-            structured_products = None
-    elif file.filename.lower().endswith('.txt'):
-        content = file.read().decode('utf-8')
-        titles = [line.strip() for line in content.split('\n') if line.strip()]
-        structured_products = None
-    else:
-        return jsonify({
-            'success': False,
-            'error': 'Unsupported file format. Please use CSV, Excel, or TXT files. Please use UTF-8 encoded files.'
-        }), 400
-except UnicodeDecodeError:
-    return jsonify({
-        'success': False,
-        'error': 'File encoding error. Please use UTF-8 encoded files.'
-    }), 400
-except Exception as e:
-    print(f"Error parsing file: {e}")
-    traceback.print_exc()
-    return jsonify({
-        'success': False,
-        'error': f'File parsing error: {str(e)}'
-    }), 400
-print(f"Found {len(titles)} titles to process")
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Unsupported file format. Please use CSV, Excel, or TXT files. Please use UTF-8 encoded files.'
+                }), 400
+        except UnicodeDecodeError:
+            return jsonify({
+                'success': False,
+                'error': 'File encoding error. Please use UTF-8 encoded files.'
+            }), 400
+        except Exception as e:
+            print(f"Error parsing file: {e}")
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'File parsing error: {str(e)}'
+            }), 400
+        print(f"Found {len(titles)} titles to process")
 
         # Initialize pipeline
         try:
@@ -295,7 +300,27 @@ print(f"Found {len(titles)} titles to process")
                     'store_label': None,
                     'errors': [f'Processing error: {str(e)}']
                 })
-
+# Add processing review and quality analysis
+        print(f"\n📊 ANALYZING PROCESSING QUALITY...")
+        reviewer = ProcessingReviewer()
+        
+        # Generate quality report
+        quality_report = reviewer.generate_quality_report(results)
+        print(quality_report)
+        
+        # Export detailed results with quality metrics
+        try:
+            detailed_df = reviewer.export_detailed_csv(results, 'detailed_results_with_quality.csv')
+            print(f"✅ Detailed results exported to: detailed_results_with_quality.csv")
+        except Exception as e:
+            print(f"⚠️  Could not export detailed CSV: {e}")
+        
+        # Get processing statistics from the generator
+        if hasattr(pipeline.generator, 'get_processing_stats'):
+            stats = pipeline.generator.get_processing_stats()
+            print(f"\n📈 API STATISTICS:")
+            for key, value in stats.items():
+                print(f"   {key}: {value}")
         return jsonify({
             'success': True,
             'results': results,
@@ -320,10 +345,8 @@ def health_check():
             'pipeline_available': CompletePipeline is not None,
             'frontend_available': os.path.exists('frontend.html')
         })
-       # pass  # placeholder for your logic
-   # except Exception as e:
-        traceback.print_exc()  # <-- Add this to print the stack trace
     except Exception as e:
+        traceback.print_exc()
         return jsonify({
             'status': 'error',
             'error': str(e)
